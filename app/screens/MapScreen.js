@@ -1,131 +1,255 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, ActivityIndicator, Alert } from 'react-native';
-import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
-import { MAPBOX_API_KEY } from '@env';
+import {
+  StyleSheet,
+  View,
+  Text,
+  ActivityIndicator,
+  Platform,
+  TouchableOpacity,
+} from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { MaterialIcons } from '@expo/vector-icons';
 
-const MapScreen = ({ route }) => {
-  const { address, data } = route.params;
-  const [region, setRegion] = useState({
-    latitude: -23.550520,
-    longitude: -46.633308,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+export default function MapScreen({ route, navigation }) {
+  const [location, setLocation] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [region, setRegion] = useState(null);
+  const [markerFixed, setMarkerFixed] = useState(false);
+
+  const { address, cep, data, tipo } = route.params;
 
   useEffect(() => {
     (async () => {
       try {
-        // Solicita permissão de localização
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        setLoading(true);
+        console.log('Iniciando carregamento do mapa com dados:', {
+          address,
+          cep,
+          tipo
+        });
+        
+        // Solicitar permissão de localização
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        console.log('Status da permissão de localização:', status);
+        
         if (status !== 'granted') {
-          setError('Permissão de localização negada');
-          setIsLoading(false);
+          console.error('Permissão de localização negada pelo usuário');
+          setErrorMsg('Permissão de localização negada');
+          setLoading(false);
           return;
         }
 
-        setIsLoading(true);
-        setError(null);
-        const query = encodeURIComponent(address);
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_API_KEY}`
-        );
+        // Obter localização atual
+        let currentLocation = await Location.getCurrentPositionAsync({});
+        console.log('Localização atual obtida:', {
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude
+        });
+        setLocation(currentLocation);
 
-        if (!response.ok) {
-          throw new Error('Erro na resposta do servidor');
+        // Geocodificar o endereço
+        console.log('Tentando geocodificar endereço:', address);
+        let geocodedLocation;
+        
+        try {
+          geocodedLocation = await Location.geocodeAsync(address);
+          console.log('Resultado da geocodificação:', geocodedLocation);
+          
+          if (!geocodedLocation || geocodedLocation.length === 0) {
+            throw new Error('Endereço não encontrado');
+          }
+          
+        } catch (geocodeError) {
+          console.error('Erro na primeira tentativa de geocodificação:', geocodeError);
+          
+          // Se falhar, tenta com o endereço simplificado
+          const enderecoSimplificado = `${data.logradouro}, ${data.localidade}, ${data.uf}`;
+          console.log('Tentando com endereço simplificado:', enderecoSimplificado);
+          
+          try {
+            geocodedLocation = await Location.geocodeAsync(enderecoSimplificado);
+            console.log('Resultado da geocodificação simplificada:', geocodedLocation);
+            
+            if (!geocodedLocation || geocodedLocation.length === 0) {
+              throw new Error('Endereço simplificado não encontrado');
+            }
+          } catch (simplifiedGeocodeError) {
+            console.error('Erro na segunda tentativa de geocodificação:', simplifiedGeocodeError);
+            throw new Error('Não foi possível encontrar o endereço no mapa');
+          }
         }
 
-        const data = await response.json();
+        const newRegion = {
+          latitude: geocodedLocation[0].latitude,
+          longitude: geocodedLocation[0].longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        };
+        
+        console.log('Definindo nova região do mapa:', newRegion);
+        setRegion(newRegion);
+        setMarkerFixed(true);
 
-        if (data.features && data.features.length > 0) {
-          const [longitude, latitude] = data.features[0].center;
-          setRegion({
-            latitude,
-            longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          });
-        } else {
-          setError('Endereço não encontrado');
-        }
-      } catch (err) {
-        console.error(err);
-        setError('Erro ao carregar o mapa. Tente novamente.');
-        Alert.alert(
-          'Erro',
-          'Não foi possível carregar o mapa. Verifique sua conexão com a internet.',
-          [{ text: 'OK' }]
-        );
+      } catch (error) {
+        console.error('Erro geral no carregamento do mapa:', error);
+        console.error('Detalhes completos do erro:', {
+          message: error.message,
+          stack: error.stack
+        });
+        setErrorMsg(error.message || 'Erro ao carregar o mapa');
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     })();
-  }, [address]);
+  }, [address, cep, data, tipo]);
 
-  if (isLoading) {
+  const toggleMarkerFixed = () => {
+    setMarkerFixed(!markerFixed);
+  };
+
+  if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>Carregando mapa...</Text>
       </View>
     );
   }
 
-  if (error) {
+  if (errorMsg) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
+      <View style={styles.container}>
+        <Text style={styles.errorText}>{errorMsg}</Text>
+        <View style={styles.addressCard}>
+          <Text style={styles.addressTitle}>Endereço Encontrado:</Text>
+          <Text style={styles.addressText}>{address}</Text>
+          {data && (
+            <>
+              <Text style={styles.addressDetail}>CEP: {data.cep}</Text>
+              <Text style={styles.addressDetail}>Bairro: {data.bairro}</Text>
+              <Text style={styles.addressDetail}>Cidade: {data.localidade}</Text>
+              <Text style={styles.addressDetail}>Estado: {data.uf}</Text>
+            </>
+          )}
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <MapView
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        initialRegion={region}
-        region={region}
+      {region && (
+        <MapView
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          initialRegion={region}
+          region={region}
+          showsUserLocation={true}
+          showsMyLocationButton={true}
+        >
+          <Marker
+            coordinate={{
+              latitude: region.latitude,
+              longitude: region.longitude
+            }}
+            title={data.logradouro}
+            description={`${data.bairro}, ${data.localidade} - ${data.uf}`}
+            draggable={!markerFixed}
+            onDragEnd={(e) => {
+              setRegion({
+                ...region,
+                latitude: e.nativeEvent.coordinate.latitude,
+                longitude: e.nativeEvent.coordinate.longitude
+              });
+            }}
+          />
+        </MapView>
+      )}
+      <TouchableOpacity
+        style={[
+          styles.fixButton,
+          markerFixed && styles.fixButtonActive
+        ]}
+        onPress={toggleMarkerFixed}
       >
-        <MapView.Marker
-          coordinate={{
-            latitude: region.latitude,
-            longitude: region.longitude,
-          }}
-          title={address}
-          description={data?.bairro || ''}
+        <MaterialIcons
+          name={markerFixed ? "location-on" : "location-searching"}
+          size={24}
+          color="white"
         />
-      </MapView>
-      <View style={styles.addressCard}>
-        <Text style={styles.addressTitle}>Endereço Encontrado:</Text>
-        <Text style={styles.addressText}>{address}</Text>
-        {data && (
-          <>
-            <Text style={styles.addressDetail}>CEP: {data.cep}</Text>
-            <Text style={styles.addressDetail}>Bairro: {data.bairro}</Text>
-            <Text style={styles.addressDetail}>Cidade: {data.localidade}</Text>
-            <Text style={styles.addressDetail}>Estado: {data.uf}</Text>
-          </>
-        )}
-      </View>
+      </TouchableOpacity>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
   },
   map: {
-    width: '100%',
-    height: '70%',
+    flex: 1,
+  },
+  card: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  addressContainer: {
+    marginBottom: 15,
+  },
+  addressTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  addressText: {
+    fontSize: 16,
+    marginBottom: 5,
+    color: '#666',
+  },
+  errorText: {
+    fontSize: 16,
+    color: 'red',
+    textAlign: 'center',
+  },
+  fixButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  fixButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  fixButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
   addressCard: {
+    padding: 20,
     backgroundColor: 'white',
-    padding: 15,
-    margin: 10,
     borderRadius: 10,
     shadowColor: '#000',
     shadowOffset: {
@@ -136,39 +260,15 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  addressTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-  },
-  addressText: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 10,
-  },
   addressDetail: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     marginBottom: 5,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff0000',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
   loadingText: {
-    marginTop: 10,
     fontSize: 16,
     color: '#666',
+    marginTop: 10,
+    textAlign: 'center',
   },
 });
-
-export default MapScreen;
