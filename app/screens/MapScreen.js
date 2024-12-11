@@ -1,83 +1,103 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, ActivityIndicator, Text, Dimensions } from 'react-native';
-import Map, { Marker } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Text, ActivityIndicator, Alert } from 'react-native';
+import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import { MAPBOX_API_KEY } from '@env';
+import * as Location from 'expo-location';
 
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiY2VzYXJwYzQzIiwiYSI6ImNtNGp3YXMyYzBncW8ybHB6ZzZiYXF1bW8ifQ.qrhFpfrxtpOGAACT6PfkZg';
-
-export default function MapScreen({ route }) {
+const MapScreen = ({ route }) => {
   const { address, data } = route.params;
-  const [viewState, setViewState] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [region, setRegion] = useState({
+    latitude: -23.550520,
+    longitude: -46.633308,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchCoordinates = async () => {
+    (async () => {
       try {
+        // Solicita permissão de localização
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setError('Permissão de localização negada');
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+        setError(null);
         const query = encodeURIComponent(address);
         const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_TOKEN}`
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_API_KEY}`
         );
+
+        if (!response.ok) {
+          throw new Error('Erro na resposta do servidor');
+        }
+
         const data = await response.json();
 
         if (data.features && data.features.length > 0) {
           const [longitude, latitude] = data.features[0].center;
-          setViewState({
-            longitude,
+          setRegion({
             latitude,
-            zoom: 15
+            longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
           });
         } else {
-          setError('Localização não encontrada');
+          setError('Endereço não encontrado');
         }
       } catch (err) {
-        setError('Erro ao buscar localização');
         console.error(err);
+        setError('Erro ao carregar o mapa. Tente novamente.');
+        Alert.alert(
+          'Erro',
+          'Não foi possível carregar o mapa. Verifique sua conexão com a internet.',
+          [{ text: 'OK' }]
+        );
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
-    };
-
-    fetchCoordinates();
+    })();
   }, [address]);
 
-  if (error) {
+  if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text style={styles.loadingText}>Carregando mapa...</Text>
       </View>
     );
   }
 
-  if (loading || !viewState) {
+  if (error) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.mapContainer}>
-        <Map
-          {...viewState}
-          style={styles.map}
-          mapStyle="mapbox://styles/mapbox/streets-v11"
-          mapboxAccessToken={MAPBOX_TOKEN}
-          onMove={evt => setViewState(evt.viewState)}
-        >
-          <Marker
-            longitude={viewState.longitude}
-            latitude={viewState.latitude}
-            anchor="bottom"
-          >
-            <View style={styles.markerContainer}>
-              <View style={styles.marker} />
-            </View>
-          </Marker>
-        </Map>
-      </View>
+      <MapView
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        initialRegion={region}
+        region={region}
+      >
+        <MapView.Marker
+          coordinate={{
+            latitude: region.latitude,
+            longitude: region.longitude,
+          }}
+          title={address}
+          description={data?.bairro || ''}
+        />
+      </MapView>
       <View style={styles.addressCard}>
         <Text style={styles.addressTitle}>Endereço Encontrado:</Text>
         <Text style={styles.addressText}>{address}</Text>
@@ -92,34 +112,15 @@ export default function MapScreen({ route }) {
       </View>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  mapContainer: {
-    height: Dimensions.get('window').height * 0.7,
-    width: '100%',
   },
   map: {
     width: '100%',
-    height: '100%',
-  },
-  markerContainer: {
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  marker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#007AFF',
-    borderWidth: 2,
-    borderColor: 'white',
+    height: '70%',
   },
   addressCard: {
     backgroundColor: 'white',
@@ -151,10 +152,23 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 5,
   },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   errorText: {
     fontSize: 16,
-    color: 'red',
+    color: '#ff0000',
     textAlign: 'center',
-    margin: 20,
+    marginBottom: 10,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
 });
+
+export default MapScreen;

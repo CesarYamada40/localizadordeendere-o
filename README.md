@@ -1,50 +1,73 @@
-# Welcome to your Expo app 👋
+# GPS Tracker Mobile App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Um aplicativo móvel para buscar endereços por CEP e visualizar suas localizações no mapa.
 
-## Get started
+## Funcionalidades
 
-1. Install dependencies
+- Busca de endereços por CEP usando a API ViaCEP
+- Visualização do endereço no mapa usando react-native-maps
+- Interface adaptativa para web e mobile
+- Suporte a geolocalização
+- Design responsivo e moderno
 
+## Tecnologias Utilizadas
+
+- React Native
+- Expo
+- React Navigation
+- React Native Maps
+- Mapbox API para geocoding
+- Axios para requisições HTTP
+
+## Como Executar
+
+1. Clone o repositório:
+   ```bash
+   git clone [seu-repositorio]
+   cd gps-tracker-mobile
+   ```
+
+2. Instale as dependências:
    ```bash
    npm install
    ```
 
-2. Start the app
+3. Configure as variáveis de ambiente:
+   - Crie um arquivo `.env` na raiz do projeto
+   - Adicione sua chave do Mapbox:
+     ```
+     MAPBOX_API_KEY=sua_chave_aqui
+     ```
 
+4. Execute o projeto:
    ```bash
-    npx expo start
+   npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+5. Para executar no dispositivo:
+   - Escaneie o QR code com o app Expo Go (Android/iOS)
+   - Ou pressione 'a' para abrir no emulador Android
+   - Ou pressione 'i' para abrir no simulador iOS
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Versão Web
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+A versão web do aplicativo está disponível, mas com funcionalidade limitada:
+- Visualização dos dados do endereço
+- Interface adaptada para navegadores
+- Sem suporte para visualização do mapa (exclusivo para mobile)
 
-## Get a fresh project
+## Estrutura do Projeto
 
-When you're ready, run:
-
-```bash
-npm run reset-project
 ```
+gps-tracker-mobile/
+├── app/
+│   ├── screens/
+│   │   ├── HomeScreen.js    # Tela inicial com busca de CEP
+│   │   ├── MapScreen.js     # Visualização do mapa (mobile)
+│   │   └── MapScreen.web.js # Versão web da tela de mapa
+├── App.js                   # Configuração principal do app
+└── package.json            # Dependências e scripts
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Contribuindo
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Sinta-se à vontade para contribuir com o projeto. Abra uma issue ou envie um pull request.
